@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>タスク管理</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #F4F1EC;
+    --surface: #FFFFFF;
+    --ink: #1C1917;
+    --ink-muted: #78716C;
+    --accent: #C84B31;
+    --high: #C84B31;
+    --mid: #D97706;
+    --low: #4B7C59;
+    --done: #A8A29E;
+    --prog: #2563EB;
+    --border: #E7E2D9;
+    --shadow: 0 2px 12px rgba(0,0,0,0.07);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Noto Sans JP', sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    min-height: 100vh;
+  }
+
+  /* Header */
+  header {
+    background: var(--ink);
+    color: #fff;
+    padding: 16px 20px;
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .header-title { font-family: 'DM Serif Display', serif; font-size: 22px; letter-spacing: 0.5px; }
+  .header-sub { font-size: 11px; opacity: 0.45; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 2px; }
+  .view-tabs { display: flex; gap: 4px; }
+  .view-tab {
+    padding: 6px 14px; border-radius: 20px; border: none; cursor: pointer;
+    font-size: 13px; font-weight: 700; font-family: 'Noto Sans JP', sans-serif;
+    background: transparent; color: rgba(255,255,255,0.5); transition: all .2s;
+  }
+  .view-tab.active { background: #fff; color: var(--ink); }
+
+  /* Main */
+  main { padding: 20px 16px 100px; max-width: 640px; margin: 0 auto; }
+
+  /* Week calendar */
+  .week-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+    margin-bottom: 24px;
+    background: var(--surface);
+    border-radius: 16px;
+    padding: 16px 12px;
+    box-shadow: var(--shadow);
+  }
+  .day-col { text-align: center; }
+  .day-label { font-size: 10px; color: var(--ink-muted); margin-bottom: 6px; font-weight: 700; letter-spacing: 1px; }
+  .day-label.weekend { color: var(--accent); }
+  .day-num {
+    width: 32px; height: 32px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; margin: 0 auto 6px;
+    border: 1px solid var(--border);
+  }
+  .day-num.today { background: var(--ink); color: #fff; border-color: var(--ink); font-weight: 700; }
+  .day-dots { display: flex; flex-direction: column; gap: 2px; }
+  .day-dot {
+    font-size: 8px; padding: 2px 3px; border-radius: 3px;
+    color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    cursor: pointer;
+  }
+
+  /* Section label */
+  .section-label {
+    font-size: 11px; font-weight: 700; letter-spacing: 2px;
+    text-transform: uppercase; color: var(--ink-muted);
+    margin-bottom: 10px; margin-top: 20px;
+  }
+
+  /* Task card */
+  .task-list { display: flex; flex-direction: column; gap: 8px; }
+  .task-card {
+    background: var(--surface);
+    border-radius: 14px;
+    padding: 14px 14px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    box-shadow: var(--shadow);
+    border: 1.5px solid transparent;
+    transition: border-color .2s;
+  }
+  .task-card.overdue { border-color: var(--accent); }
+  .task-card.done-card { opacity: 0.55; }
+
+  .progress-btn {
+    width: 36px; height: 36px; border-radius: 50%; border: none;
+    cursor: pointer; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; color: #fff; transition: transform .15s;
+  }
+  .progress-btn:active { transform: scale(0.92); }
+
+  .task-body { flex: 1; min-width: 0; }
+  .task-name {
+    font-size: 15px; font-weight: 600;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .task-name.done-name { text-decoration: line-through; opacity: 0.6; }
+  .task-meta { display: flex; gap: 6px; margin-top: 5px; align-items: center; flex-wrap: wrap; }
+  .badge {
+    font-size: 10px; padding: 2px 8px; border-radius: 10px;
+    color: #fff; font-weight: 700;
+  }
+  .deadline-text { font-size: 12px; color: var(--ink-muted); }
+  .deadline-text.overdue { color: var(--accent); font-weight: 700; }
+  .progress-text { font-size: 11px; color: var(--ink-muted); }
+
+  .edit-btn {
+    background: none; border: none; cursor: pointer;
+    color: var(--border); font-size: 22px; padding: 4px;
+    line-height: 1; transition: color .2s;
+  }
+  .edit-btn:hover { color: var(--ink-muted); }
+
+  /* Empty state */
+  .empty { text-align: center; padding: 40px 0; color: var(--ink-muted); font-size: 14px; }
+
+  /* FAB */
+  .fab {
+    position: fixed; bottom: 28px; right: 20px;
+    width: 56px; height: 56px; border-radius: 50%;
+    background: var(--ink); color: #fff; border: none;
+    font-size: 28px; cursor: pointer;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+    display: flex; align-items: center; justify-content: center;
+    transition: transform .15s;
+    z-index: 40;
+  }
+  .fab:active { transform: scale(0.93); }
+
+  /* Modal */
+  .modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.45);
+    display: flex; align-items: flex-end;
+    z-index: 100;
+    opacity: 0; transition: opacity .25s;
+  }
+  .modal-overlay.open { opacity: 1; }
+  .modal {
+    background: var(--surface);
+    width: 100%; border-radius: 20px 20px 0 0;
+    padding: 24px 20px 40px;
+    max-height: 85vh; overflow-y: auto;
+    transform: translateY(100%);
+    transition: transform .3s cubic-bezier(.32,1,.23,1);
+  }
+  .modal-overlay.open .modal { transform: translateY(0); }
+  .modal-title { font-family: 'DM Serif Display', serif; font-size: 22px; margin-bottom: 20px; }
+  label { display: block; font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--ink-muted); margin-bottom: 6px; }
+  input[type="text"], input[type="date"] {
+    width: 100%; padding: 12px 14px; border-radius: 10px;
+    border: 1.5px solid var(--border); font-size: 15px; margin-bottom: 16px;
+    font-family: 'Noto Sans JP', sans-serif;
+    background: var(--bg); outline: none;
+    transition: border-color .2s;
+  }
+  input[type="text"]:focus, input[type="date"]:focus { border-color: var(--ink); }
+  .toggle-group { display: flex; gap: 8px; margin-bottom: 16px; }
+  .toggle-btn {
+    flex: 1; padding: 10px 0; border-radius: 10px;
+    border: 1.5px solid var(--border);
+    background: var(--bg); color: var(--ink-muted);
+    font-weight: 700; font-size: 13px; cursor: pointer;
+    font-family: 'Noto Sans JP', sans-serif;
+    transition: all .15s;
+  }
+  .toggle-btn.selected { color: #fff; border-color: transparent; }
+  .btn-primary {
+    width: 100%; padding: 16px; background: var(--ink); color: #fff;
+    border: none; border-radius: 14px; font-weight: 700; font-size: 16px;
+    cursor: pointer; font-family: 'Noto Sans JP', sans-serif;
+    margin-bottom: 10px; transition: opacity .15s;
+  }
+  .btn-primary:active { opacity: 0.85; }
+  .btn-danger {
+    width: 100%; padding: 14px; background: #fff; color: var(--accent);
+    border: 1.5px solid var(--accent); border-radius: 14px;
+    font-weight: 700; font-size: 15px; cursor: pointer;
+    font-family: 'Noto Sans JP', sans-serif; margin-bottom: 10px;
+  }
+  .btn-cancel {
+    width: 100%; padding: 14px; background: var(--bg); color: var(--ink-muted);
+    border: 1.5px solid var(--border); border-radius: 14px;
+    font-weight: 700; font-size: 15px; cursor: pointer;
+    font-family: 'Noto Sans JP', sans-serif;
+  }
+
+  /* Loading / toast */
+  .loading-overlay {
+    position: fixed; inset: 0; background: rgba(244,241,236,0.7);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 200; font-size: 14px; color: var(--ink-muted);
+  }
+  .toast {
+    position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%);
+    background: var(--ink); color: #fff; padding: 10px 20px; border-radius: 20px;
+    font-size: 13px; z-index: 300; opacity: 0; transition: opacity .3s;
+    pointer-events: none;
+  }
+  .toast.show { opacity: 1; }
+
+  /* Priority group header */
+  .priority-group-header {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="header-sub">My Tasks</div>
+    <div class="header-title" id="headerDate"></div>
+  </div>
+  <div class="view-tabs">
+    <button class="view-tab active" onclick="setView('week')">週</button>
+    <button class="view-tab" onclick="setView('list')">一覧</button>
+  </div>
+</header>
+
+<main id="main"></main>
+
+<button class="fab" onclick="openAdd()">＋</button>
+
+<!-- Modal -->
+<div class="modal-overlay" id="modalOverlay" onclick="closeModal(event)">
+  <div class="modal" id="modal">
+    <div class="modal-title" id="modalTitle">タスクを追加</div>
+    <label>タスク名</label>
+    <input type="text" id="fName" placeholder="例：企画書を作成する">
+    <label>締め切り</label>
+    <input type="date" id="fDeadline">
+    <label>優先度</label>
+    <div class="toggle-group" id="priorityGroup"></div>
+    <label>進捗</label>
+    <div class="toggle-group" id="progressGroup"></div>
+    <button class="btn-primary" onclick="submitForm()">保存する</button>
+    <button class="btn-danger" id="deleteBtn" onclick="deleteTask()" style="display:none">削除する</button>
+    <button class="btn-cancel" onclick="closeModal()">キャンセル</button>
+  </div>
+</div>
+
+<div class="loading-overlay" id="loading">読み込み中…</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const API = "https://script.google.com/macros/s/AKfycbw2c7dyUoDIzsRDV1bUYR_agcbvcW3er87NPOtW_gexjBjHOMwYr1iLhCECw7Tdx9sJWA/exec";
+
+const PRIORITIES = ["高","中","低"];
+const PROGRESS   = ["未着手","進行中","完了"];
+const P_COLOR = { "高":"#C84B31","中":"#D97706","低":"#4B7C59" };
+const PR_COLOR = { "未着手":"#A8A29E","進行中":"#2563EB","完了":"#4B7C59" };
+const DAY_LABELS = ["月","火","水","木","金","土","日"];
+
+let tasks = [];
+let currentView = "week";
+let editId = null;
+let fPriority = "中";
+let fProgress = "未着手";
+
+// ── API ──────────────────────────────────────
+async function apiGet() {
+  const res = await fetch(API + "?action=getAll");
+  const j = await res.json();
+  return j.tasks || [];
+}
+async function apiPost(body) {
+  await fetch(API, {
+    method: "POST",
+    body: JSON.stringify(body)
+  });
+}
+
+// ── Init ─────────────────────────────────────
+async function init() {
+  setHeaderDate();
+  showLoading(true);
+  try {
+    tasks = await apiGet();
+  } catch(e) {
+    showToast("読み込みに失敗しました");
+  }
+  showLoading(false);
+  render();
+}
+
+function setHeaderDate() {
+  const d = new Date();
+  document.getElementById("headerDate").textContent =
+    `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;
+}
+
+// ── View ─────────────────────────────────────
+function setView(v) {
+  currentView = v;
+  document.querySelectorAll(".view-tab").forEach((b,i) => {
+    b.classList.toggle("active", (i===0 && v==="week") || (i===1 && v==="list"));
+  });
+  render();
+}
+
+function render() {
+  const main = document.getElementById("main");
+  main.innerHTML = "";
+  if (currentView === "week") renderWeek(main);
+  else renderList(main);
+}
+
+// ── Week view ────────────────────────────────
+function renderWeek(container) {
+  const today = new Date();
+  const weekDays = getWeekDays();
+
+  // Calendar grid
+  const grid = document.createElement("div");
+  grid.className = "week-grid";
+  weekDays.forEach((day, i) => {
+    const col = document.createElement("div");
+    col.className = "day-col";
+    const label = document.createElement("div");
+    label.className = "day-label" + (i >= 5 ? " weekend" : "");
+    label.textContent = DAY_LABELS[i];
+    const num = document.createElement("div");
+    num.className = "day-num" + (isSameDay(day, today) ? " today" : "");
+    num.textContent = day.getDate();
+    col.appendChild(label);
+    col.appendChild(num);
+
+    const dayTasks = tasks.filter(t => t.deadline && isSameDay(new Date(t.deadline), day));
+    if (dayTasks.length) {
+      const dots = document.createElement("div");
+      dots.className = "day-dots";
+      dayTasks.forEach(t => {
+        const dot = document.createElement("div");
+        dot.className = "day-dot";
+        dot.style.background = P_COLOR[t.priority] || "#888";
+        dot.textContent = t.name;
+        dot.onclick = () => openEdit(t);
+        dots.appendChild(dot);
+      });
+      col.appendChild(dots);
+    }
+    grid.appendChild(col);
+  });
+  container.appendChild(grid);
+
+  // Active tasks
+  const active = tasks.filter(t => t.progress !== "完了")
+    .sort((a,b) => PRIORITIES.indexOf(a.priority) - PRIORITIES.indexOf(b.priority));
+  const done = tasks.filter(t => t.progress === "完了");
+
+  if (active.length === 0 && done.length === 0) {
+    container.appendChild(emptyState("＋ボタンでタスクを追加しましょう"));
+    return;
+  }
+
+  if (active.length) {
+    container.appendChild(sectionLabel("今週のタスク"));
+    const list = document.createElement("div");
+    list.className = "task-list";
+    active.forEach(t => list.appendChild(taskCard(t)));
+    container.appendChild(list);
+  }
+
+  if (done.length) {
+    container.appendChild(sectionLabel("完了済み"));
+    const list = document.createElement("div");
+    list.className = "task-list";
+    done.forEach(t => list.appendChild(taskCard(t)));
+    container.appendChild(list);
+  }
+}
+
+// ── List view ────────────────────────────────
+function renderList(container) {
+  const active = tasks.filter(t => t.progress !== "完了");
+  const done   = tasks.filter(t => t.progress === "完了");
+
+  if (tasks.length === 0) {
+    container.appendChild(emptyState("＋ボタンでタスクを追加しましょう"));
+    return;
+  }
+
+  PRIORITIES.forEach(p => {
+    const pt = active.filter(t => t.priority === p);
+    if (!pt.length) return;
+    const header = document.createElement("div");
+    header.className = "priority-group-header";
+    header.style.marginTop = "20px";
+    const badge = document.createElement("span");
+    badge.className = "badge";
+    badge.style.background = P_COLOR[p];
+    badge.textContent = `優先度：${p}`;
+    header.appendChild(badge);
+    container.appendChild(header);
+    const list = document.createElement("div");
+    list.className = "task-list";
+    pt.forEach(t => list.appendChild(taskCard(t)));
+    container.appendChild(list);
+  });
+
+  if (done.length) {
+    container.appendChild(sectionLabel("完了済み"));
+    const list = document.createElement("div");
+    list.className = "task-list";
+    done.forEach(t => list.appendChild(taskCard(t)));
+    container.appendChild(list);
+  }
+}
+
+// ── Task card ────────────────────────────────
+function taskCard(t) {
+  const overdue = t.progress !== "完了" && isOverdue(t.deadline);
+  const card = document.createElement("div");
+  card.className = "task-card" + (overdue ? " overdue" : "") + (t.progress === "完了" ? " done-card" : "");
+
+  // Progress button
+  const btn = document.createElement("button");
+  btn.className = "progress-btn";
+  btn.style.background = PR_COLOR[t.progress] || "#ccc";
+  btn.innerHTML = t.progress === "完了" ? "✓" : t.progress === "進行中" ? "▶" : "";
+  btn.onclick = () => cycleProgress(t.id);
+  card.appendChild(btn);
+
+  // Body
+  const body = document.createElement("div");
+  body.className = "task-body";
+  const name = document.createElement("div");
+  name.className = "task-name" + (t.progress === "完了" ? " done-name" : "");
+  name.textContent = t.name;
+  body.appendChild(name);
+
+  const meta = document.createElement("div");
+  meta.className = "task-meta";
+  const badge = document.createElement("span");
+  badge.className = "badge";
+  badge.style.background = P_COLOR[t.priority] || "#888";
+  badge.textContent = t.priority;
+  meta.appendChild(badge);
+  if (t.deadline) {
+    const dl = document.createElement("span");
+    dl.className = "deadline-text" + (overdue ? " overdue" : "");
+    dl.textContent = (overdue ? "⚠ " : "") + formatDate(t.deadline);
+    meta.appendChild(dl);
+  }
+  const pg = document.createElement("span");
+  pg.className = "progress-text";
+  pg.textContent = t.progress;
+  meta.appendChild(pg);
+  body.appendChild(meta);
+  card.appendChild(body);
+
+  // Edit
+  const editBtn = document.createElement("button");
+  editBtn.className = "edit-btn";
+  editBtn.textContent = "›";
+  editBtn.onclick = () => openEdit(t);
+  card.appendChild(editBtn);
+
+  return card;
+}
+
+// ── CRUD ─────────────────────────────────────
+async function cycleProgress(id) {
+  const task = tasks.find(t => t.id === id);
+  if (!task) return;
+  const idx = PROGRESS.indexOf(task.progress);
+  task.progress = PROGRESS[(idx + 1) % PROGRESS.length];
+  render();
+  try {
+    await apiPost({ action: "update", task });
+    showToast("更新しました");
+  } catch { showToast("保存に失敗しました"); }
+}
+
+async function submitForm() {
+  const name = document.getElementById("fName").value.trim();
+  if (!name) { showToast("タスク名を入力してください"); return; }
+  const task = {
+    name,
+    deadline: document.getElementById("fDeadline").value,
+    priority: fPriority,
+    progress: fProgress
+  };
+  closeModal();
+  showLoading(true);
+  try {
+    if (editId) {
+      task.id = editId;
+      await apiPost({ action: "update", task });
+      tasks = tasks.map(t => t.id === editId ? task : t);
+      showToast("タスクを更新しました");
+    } else {
+      const res = await fetch(API, { method: "POST", body: JSON.stringify({ action: "add", task }) });
+      const j = await res.json();
+      task.id = j.id;
+      tasks.push(task);
+      showToast("タスクを追加しました");
+    }
+  } catch { showToast("保存に失敗しました"); }
+  showLoading(false);
+  render();
+}
+
+async function deleteTask() {
+  if (!editId) return;
+  closeModal();
+  showLoading(true);
+  try {
+    await apiPost({ action: "delete", id: editId });
+    tasks = tasks.filter(t => t.id !== editId);
+    showToast("削除しました");
+  } catch { showToast("削除に失敗しました"); }
+  showLoading(false);
+  render();
+}
+
+// ── Modal ────────────────────────────────────
+function openAdd() {
+  editId = null;
+  fPriority = "中"; fProgress = "未着手";
+  document.getElementById("fName").value = "";
+  document.getElementById("fDeadline").value = "";
+  document.getElementById("modalTitle").textContent = "タスクを追加";
+  document.getElementById("deleteBtn").style.display = "none";
+  buildToggles();
+  showModal();
+}
+
+function openEdit(t) {
+  editId = t.id;
+  fPriority = t.priority; fProgress = t.progress;
+  document.getElementById("fName").value = t.name;
+  document.getElementById("fDeadline").value = t.deadline || "";
+  document.getElementById("modalTitle").textContent = "タスクを編集";
+  document.getElementById("deleteBtn").style.display = "block";
+  buildToggles();
+  showModal();
+}
+
+function buildToggles() {
+  const pg = document.getElementById("priorityGroup");
+  pg.innerHTML = "";
+  PRIORITIES.forEach(p => {
+    const b = document.createElement("button");
+    b.className = "toggle-btn" + (fPriority === p ? " selected" : "");
+    if (fPriority === p) b.style.background = P_COLOR[p];
+    b.textContent = p;
+    b.onclick = () => { fPriority = p; buildToggles(); };
+    pg.appendChild(b);
+  });
+  const prg = document.getElementById("progressGroup");
+  prg.innerHTML = "";
+  PROGRESS.forEach(p => {
+    const b = document.createElement("button");
+    b.className = "toggle-btn" + (fProgress === p ? " selected" : "");
+    if (fProgress === p) b.style.background = PR_COLOR[p];
+    b.textContent = p;
+    b.onclick = () => { fProgress = p; buildToggles(); };
+    prg.appendChild(b);
+  });
+}
+
+function showModal() {
+  const overlay = document.getElementById("modalOverlay");
+  overlay.style.display = "flex";
+  setTimeout(() => overlay.classList.add("open"), 10);
+}
+
+function closeModal(e) {
+  if (e && e.target !== document.getElementById("modalOverlay")) return;
+  const overlay = document.getElementById("modalOverlay");
+  overlay.classList.remove("open");
+  setTimeout(() => { overlay.style.display = "none"; }, 300);
+}
+
+// ── Helpers ──────────────────────────────────
+function getWeekDays() {
+  const today = new Date();
+  const day = today.getDay();
+  const monday = new Date(today);
+  monday.setDate(today.getDate() - (day === 0 ? 6 : day - 1));
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    return d;
+  });
+}
+
+function isSameDay(d1, d2) {
+  return d1.getFullYear()===d2.getFullYear() && d1.getMonth()===d2.getMonth() && d1.getDate()===d2.getDate();
+}
+
+function isOverdue(deadline) {
+  if (!deadline) return false;
+  const today = new Date(); today.setHours(0,0,0,0);
+  return new Date(deadline) < today;
+}
+
+function formatDate(d) {
+  if (!d) return "";
+  const date = new Date(d);
+  return `${date.getMonth()+1}/${date.getDate()}`;
+}
+
+function sectionLabel(text) {
+  const el = document.createElement("div");
+  el.className = "section-label";
+  el.textContent = text;
+  return el;
+}
+
+function emptyState(text) {
+  const el = document.createElement("div");
+  el.className = "empty";
+  el.textContent = text;
+  return el;
+}
+
+function showLoading(v) {
+  document.getElementById("loading").style.display = v ? "flex" : "none";
+}
+
+function showToast(msg) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  setTimeout(() => t.classList.remove("show"), 2000);
+}
+
+// ── Start ────────────────────────────────────
+init();
+</script>
+</body>
+</html>
